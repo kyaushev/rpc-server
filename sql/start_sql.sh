@@ -1,0 +1,1 @@
+sudo systemctl start mariadb && mysql -u user -p < news.sql
