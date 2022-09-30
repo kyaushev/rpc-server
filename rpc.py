@@ -19,13 +19,22 @@ class RPC(Resource):
                 return f" WHERE post_date BETWEEN \'{start}\' AND \'{end}\';"
             return f" WHERE post_date = \'{start}\';"
         return ";"
-    def query_string(self, start, end):
+    def select_query_string(self, start, end):
         return f"SELECT * FROM {DATABASE}.{TABLE}{self.get_date_clause(start, end)}"
     
-    def make_query(self, query):
-        data = pd.read_sql_query(query, engine).to_json()
+    def delete_query_string(self, id):
+        return f"DELETE FROM {DATABASE}.{TABLE} WHERE id = {id}"
 
-        return             
+    def insert_query_string(self, title, body, postDate):
+        return f"INSERT INTO {DATABASE}.{TABLE}(title, body, post_date) VALUES(\"{title}\", \"{body}\", \"{postDate}\")"
+    
+    def update_query_string(self, id, title, body, postDate):
+        return f"UPDATE {DATABASE}.{TABLE} SET title = \"{title}\", body = \"{body}\", post_date = \"{postDate}\" WHERE id = {id}"    
+
+    def make_query(self, query):
+        return engine.execute(query)
+    def make_select_query(self, query):
+        return pd.read_sql_query(query, engine).to_json()
     
     def get(self):
         return "Use POST method instead", 404
@@ -41,16 +50,52 @@ class RPC(Resource):
             json_dict = json.loads(request.json)
             if (all(elem in json_dict.keys() for elem in ["id", "func", "args"])):
                 resp["id"] = json_dict["id"]
-                start, end = json_dict["args"]
-                query = self.query_string(start, end)
-                try:  
-                    
-                    print(f"QUERY: {query}")
-                    resp["data"] = self.make_query(query).to_json()
-                    resp["err"] = 0
-                except Exception as err:
-                    print(f"ERR: {err}")
-                    resp["err_description"] = "Database error"  
+                func = json_dict["func"]
+                if func == "deleteNews":
+                    id = json_dict["args"][0]
+                    query = self.delete_query_string(id)
+                    try:
+                        print(f"QUERY: {query}")
+                        self.make_query(query)
+                        resp["data"] = ""
+                        resp["err"] = 0
+                    except Exception as err:
+                        print(f"ERR: {err}")
+                        resp["err_description"] = "Database error"
+                elif func == "addNews":        
+                    title, body, postDate = json_dict["args"]
+                    query = self.insert_query_string(title, body, postDate)
+                    try:   
+                        print(f"QUERY: {query}")
+                        self.make_query(query)
+                        resp["data"] = ""
+                        resp["err"] = 0
+                    except Exception as err:
+                        print(f"ERR: {err}")
+                        resp["err_description"] = "Database error"
+                elif func == "updateNews":        
+                    id, title, body, postDate = json_dict["args"]
+                    query = self.update_query_string(id, title, body, postDate)
+                    try:   
+                        print(f"QUERY: {query}")
+                        self.make_query(query)
+                        resp["data"] = ""
+                        resp["err"] = 0
+                    except Exception as err:
+                        print(f"ERR: {err}")
+                        resp["err_description"] = "Database error"               
+                elif func == "getNews":        
+                    start, end = json_dict["args"]
+                    query = self.select_query_string(start, end)
+                    try:   
+                        print(f"QUERY: {query}")
+                        resp["data"] = self.make_select_query(query)
+                        resp["err"] = 0
+                    except Exception as err:
+                        print(f"ERR: {err}")
+                        resp["err_description"] = "Database error"
+                else: 
+                    resp["err_description"] = f"Function \'{func}\' is not found"         
             else:
                 resp["err_description"] = "Expected form: \{ \"id\": id, \"func\": func_name, \"args\": [start, end] \}"
         else:
