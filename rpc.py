@@ -3,6 +3,7 @@ from flask_restful import Api, Resource, reqparse
 import pandas as pd
 import sqlalchemy
 import json
+import unicodedata
 
 HOSTNAME = 'localhost'
 USER = 'user'
@@ -13,14 +14,14 @@ connection_string = f'mariadb+pymysql://{USER}:{PASSWORD}@{HOSTNAME}/{DATABASE}?
 engine = sqlalchemy.create_engine(connection_string, pool_size=20, pool_recycle=3600)
 
 class RPC(Resource):
-    def get_date_clause(self, start, end):
-        if (start):
-            if (end):
+    def get_date_clause(self, *date_range):
+        if (date_range[0]):
+            if (date_range[1]):
                 return f" WHERE post_date BETWEEN \'{start}\' AND \'{end}\';"
             return f" WHERE post_date = \'{start}\';"
         return ";"
-    def select_query_string(self, start, end):
-        return f"SELECT * FROM {DATABASE}.{TABLE}{self.get_date_clause(start, end)}"
+    def select_query_string(self, *date_range):
+        return f"SELECT * FROM {DATABASE}.{TABLE}{self.get_date_clause(date_range)}"
     
     def delete_query_string(self, id):
         return f"DELETE FROM {DATABASE}.{TABLE} WHERE id = {id}"
@@ -46,8 +47,15 @@ class RPC(Resource):
             "data": {}
         }
         content_type = request.headers.get('Content-Type')
-        if (content_type == 'application/json'):
-            json_dict = json.loads(request.json)
+        print()
+        print(content_type)
+        print(request.json)
+        print()
+        if (content_type == 'application/json; charset=utf-8'):
+            json_dict = request.json#json.loads(request.json)
+            print()
+            print(json_dict)
+            print()
             if (all(elem in json_dict.keys() for elem in ["id", "func", "args"])):
                 resp["id"] = json_dict["id"]
                 func = json_dict["func"]
@@ -84,12 +92,11 @@ class RPC(Resource):
                     except Exception as err:
                         print(f"ERR: {err}")
                         resp["err_description"] = "Database error"               
-                elif func == "getNews":        
-                    start, end = json_dict["args"]
-                    query = self.select_query_string(start, end)
+                elif func == "getNews":
+                    query = self.select_query_string(*json_dict['args'])
                     try:   
                         print(f"QUERY: {query}")
-                        resp["data"] = self.make_select_query(query)
+                        resp["data"] = self.make_select_query(query) #.encode().decode('utf-8', errors='ignore')
                         resp["err"] = 0
                     except Exception as err:
                         print(f"ERR: {err}")
